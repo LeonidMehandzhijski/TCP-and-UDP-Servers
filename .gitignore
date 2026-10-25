@@ -12,3 +12,6 @@ __pycache__/
 
 # Database
 monitor.db
+
+# Keys
+*.pem
