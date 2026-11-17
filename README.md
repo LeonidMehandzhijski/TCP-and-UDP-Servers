@@ -5,6 +5,8 @@ I'm building two small echo servers to learn Python, sockets and DevOps stuff. I
 ## What's in here
 
 ```
+infra/
+  main.tf         EC2 instance, security group, and bootstrap setup
 servers/
   tcp_echo.py     TCP echo server, port 5000, one thread per caller
   udp_echo.py     UDP echo server, port 5001
@@ -103,7 +105,7 @@ And when I'm finished for the day I run `terraform destroy` with the same `-var`
 - First attempt at using SSH to get into the instance timed out. The security group rule said "My IP". I was using a hotspot at the time and public IP's for hotspots change all the time. Had to update the rules as I was getting connection refused.
 - My first attempt at pasting new blocks into a Terraform file got stumped by the classic curly bracket. Learned what terraform validate does real quickly.
 - Doing terraform destroy and then terraform apply and watching a fresh server come up working, with nothing done on my end by hand so to speak. It made me understand infrastructure as code a lot more.
-- There is also something I learned from a OpenAI workshop & hackathon that was organized recently that I used here. As I am also using AI to shepherd me through this. Mainly Claude Code but when I run out of tokens I use Codex. The man handling the workshop kept talking about how to use AI Agents the best. Something that stuck with me was the file structure that was very important. But also handoff.md. Makes switching from one agent to the next much easier.
+- There is also something I learned from a OpenAI workshop & hackathon that was organized recently that I used here. As I am also using AI to shepherd me through this. Mainly Claude Code and Codex. The man handling the workshop kept talking about how to use AI Agents the best. Something that stuck with me was the file structure that was very important. But also handoff.md. Makes switching from one agent to the next much easier.
 
 ## Where this is going
 
