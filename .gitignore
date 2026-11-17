@@ -15,3 +15,12 @@ monitor.db
 
 # Keys
 *.pem
+
+#Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+
+# Logs and Terraform extras
+*.log
+*.tfvars
