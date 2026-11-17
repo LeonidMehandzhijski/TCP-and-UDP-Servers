@@ -68,6 +68,32 @@ Results go into a SQLite file called `monitor.db`, one row per check. This table
 | jitter_ms   | UDP only                                   |
 | error       | what went wrong, if anything               |
 
+## Running it on AWS
+
+The servers also run on a small EC2 instance in Frankfurt (eu-central-1), so I can probe them from my phone hotspot at home. My hotspot is behind carrier NAT so I can't host anything on it, but connecting outward to AWS works fine.
+
+I first built it by hand in the console so I'd understand every piece, then rebuilt the same thing with Terraform. Now all of it comes from the `infra/` folder:
+
+```
+cd infra
+terraform init
+terraform apply -var="my_ip=$(curl -4 -s https://checkip.amazonaws.com)/32"
+```
+
+When it's done it prints the public IP. Give it a couple of minutes for the first boot, then probe it:
+
+```
+python probe/probe.py <that ip>
+```
+
+And when I'm finished for the day I run `terraform destroy` with the same `-var`, so nothing sits there using up credits.
+
+- t3.micro with Amazon Linux 2023, the newest image gets looked up automatically
+- The first-boot script copies the two servers onto the instance and sets them up as systemd services (`tcp-echo` and `udp-echo`), so they start on boot and get restarted if they crash
+- The security group only allows SSH (22), TCP 5000 and UDP 5001 from my own IP. A hotspot's public IP changes, so I pass the current one in every time I run Terraform
+- The public IP is different for every new instance, so Terraform prints it as an output and I pass it to the probe on the command line
+- The SSH key and Terraform's state files are in `.gitignore`. The state can contain secrets
+
 ## Things I ran into
 
 - When I first started making the TCP Server it could only talk to one client. A second client would just freeze until the first one hung up, because the server was stuck waiting on the first connection to stop. This is where I learned about threads, now each connection has its own thread.
