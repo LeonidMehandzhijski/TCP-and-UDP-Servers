@@ -72,8 +72,11 @@ Results go into a SQLite file called `monitor.db`, one row per check. This table
 
 - When I first started making the TCP Server it could only talk to one client. A second client would just freeze until the first one hung up, because the server was stuck waiting on the first connection to stop. This is where I learned about threads, now each connection has its own thread.
 - First major-ish problem I encountered was stopping the UDP server and then running the client gave a `ConnectionResetError` on Windows, while on Linux it just gave the response that no one was listening... Windows turns the nobody is listening reply into an error, but Linux doesn't, it just times out. So the probe treats both as a failure and stores which one it saw.
-- For some reason while probing from my laptop to my PC, all of a sudden the UDP loss numbers looked way too high while ping showed 0% loss, I counted the packets on the server and all 10 arrived, so the loss wasn't real. I'm still sorting out whether it's a bug in how my probe matches replies. I'll update this once I know. Theoretically it could be because of a lot of things. Needs more testing.
+- For some reason while probing from my laptop to my PC, all of a sudden the UDP loss numbers looked way too high while ping showed 0% loss, I counted the packets on the server and all 10 arrived, so the loss wasn't real. It turned out to be a bug in my probe. It waited 1 second for each reply, if one was late it would send another, and when the late one would show up it would throw it away as a wrong packet. After that it was a domino effect of each one falling behind and all of them got counted as lost too. The fix was to ignore replies that don't match the packet I'm waiting for and keep waiting untile the deadline. After that I started getting 0% loss.
 - One thing I learned about how to better future-proof your code is, when it came down to actually probing it would always run both the udp and tcp checks. But maybe I just wanted to test one. So because I learned about argparse in my LogAnalyzer project I was able to use that to make --check udp or tcp. Why I say this was for future proofing is because I was ready to just make them seperate scripts. But that would be reusing the same code which wouldn't be very efficient.
+- First attempt at using SSH to get into the instance timed out. The security group rule said "My IP". I was using a hotspot at the time and public IP's for hotspots change all the time. Had to update the rules as I was getting connection refused.
+- My first attempt at pasting new blocks into a Terraform file got stumped by the classic curly bracket. Learned what terraform validate does real quickly.
+- Doing terraform destroy and then terraform apply and watching a fresh server come up working, with nothing done on my end by hand so to speak. It made me understand infrastructure as code a lot more.
 - There is also something I learned from a OpenAI workshop & hackathon that was organized recently that I used here. As I am also using AI to shepherd me through this. Mainly Claude Code but when I run out of tokens I use Codex. The man handling the workshop kept talking about how to use AI Agents the best. Something that stuck with me was the file structure that was very important. But also handoff.md. Makes switching from one agent to the next much easier.
 
 ## Where this is going
@@ -81,7 +84,7 @@ Results go into a SQLite file called `monitor.db`, one row per check. This table
 - [x] TCP and UDP echo servers
 - [x] Probe that writes to SQLite
 - [x] Test between two machines over a phone hotspot
-- [ ] Host the servers on AWS (EC2, Frankfurt) and probe them from the hotspot
-- [ ] Rebuild that setup with Terraform
+- [x] Host the servers on AWS (EC2, Frankfurt) and probe them from the hotspot
+- [x] Rebuild that setup with Terraform
 - [ ] Run the probe on a timer (systemd) instead of by hand
 - [ ] Dashboard (separate repo)

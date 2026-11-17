@@ -1,9 +1,9 @@
 # Handoff
-**Last updated:** 2026-10-24
-**Current project / stage:** The Platform, Stage A1: network connectivity monitor (TCP/UDP echo servers as probe targets, moving to AWS now)
+**Last updated:** 2026-10-28
+**Current project / stage:** The Platform, Stage A1: network connectivity monitor (TCP/UDP echo servers as probe targets, running on AWS, built with Terraform)
 
 **Done so far:**
-- Repo folder currently named `TCP and UDP Server` (rename to `net-monitor`, no spaces, still pending). Layout: `servers/` (deployed code), `tools/` (test clients + report), `probe/` (the monitor).
+- Repo folder: `TCP-and-UDP-Servers` (first GitHub push still pending). Layout: `servers/` (deployed code), `tools/` (test clients + report), `probe/` (the monitor), `infra/` (Terraform).
 - `servers/tcp_echo.py`: threaded TCP echo server, port 5000, one thread per caller.
 - `servers/udp_echo.py`: UDP echo server, port 5001.
 - `tools/tcp_client.py`, `tools/udp_client.py`: throwaway test clients. `tools/report.py`: GROUP BY summary per host and check type.
@@ -12,17 +12,22 @@
 - Schema (the contract for Stage B): `checks(id, ts, source_host, target, check_type, ok, latency_ms, loss_pct, jitter_ms, error)`. `ts` is UTC ISO 8601. `monitor.db` is gitignored.
 - README.md written for the repo in the same style as the LogAnalyzer README.
 - AWS account created on the Free plan: root MFA, daily-use IAM user with MFA, budget alert.
+- Echo servers copied to the EC2 instance (scp) and started with nohup. First probe from the hotspot laptop to EC2 (Frankfurt): TCP 114 ms, UDP 54 ms avg, 0% loss, 10 ms jitter. TCP is about 2x UDP because of the handshake. Laptop -> PC for comparison was 6-8 ms.
+- Both echo servers on the EC2 instance now run as systemd services (tcp-echo, udp-echo) and survived a stop/start, probed from the hotspot afterwards.
+- README.md updated with the AWS deployment, the resolved UDP bug, and sample results.
+- Terraform installed on the Fedora laptop. `infra/main.tf` builds the security group (SSH, TCP 5000, UDP 5001 from `my_ip`) and an EC2 instance (t3.micro, AL2023 via SSM parameter, existing key pair `Key-Pair`, standard CPU credits); `infra/userdata.sh.tftpl` writes the two servers and their systemd units on first boot; `public_ip` is an output. Verified: apply, probe the output IP, destroy, apply again, probe again with no manual steps. `.gitignore` covers `.terraform/`, state files, keys and `monitor.db`; `.terraform.lock.hcl` is committed.
 
 **In progress:**
-- About to launch the first EC2 instance by hand (step 11): Amazon Linux 2023, free-tier-eligible type, new ED25519 key pair, security group with SSH 22, TCP 5000, UDP 5001, source "My IP".
-- TCP check laptop -> PC currently times out in every run while UDP works. Most likely the Windows firewall rule for TCP 5000 was deleted after the earlier test, or `tcp_echo.py` isn't running on the PC. Low priority, since the PC stops being the target once the servers are on AWS.
+- Nothing in flight. Remaining housekeeping: first push to GitHub (README.md, handoff.md, infra/), terminate the old manually built `echo-test` instance and its manual security group in the console, and make sure no instance is left running (`terraform destroy` when done for the day).
+- TCP check laptop -> PC may still time out (missing Windows firewall rule). Low priority.
 
 **Next steps:**
-1. Launch the EC2 instance, note the public IPv4 address, stop the instance at the end of each session to save credits.
-2. SSH in with the key, copy `servers/`, run both echo servers as systemd services.
-3. Probe the EC2 target from the hotspot (`python probe/probe.py <ec2-ip>`), compare against the PC results.
-4. Rebuild the instance and security group with Terraform (destroy and recreate).
-5. Then: systemd timer for the probe on Fedora, TCP every minute and UDP every five.
+1. Push the repo to GitHub, after checking `git add --dry-run .` shows no keys, state files, logs or `monitor.db`.
+2. Terminate the manual instance and its security group.
+3. Harden the echo servers: require a shared token (UDP: packets without it are ignored; TCP: first message must carry it). Needed before opening ports beyond a single source IP.
+4. Then open TCP 5000 / UDP 5001 to the world, so a probe from a changing hotspot IP keeps working unattended.
+5. systemd timer for the probe on Fedora (TCP every minute, UDP every five) to start collecting data.
+6. Stage B dashboard (separate repo) reading `monitor.db`, then Stage C.
 
 **Decisions made and why:**
 - Echo servers are the A1 probe targets: ICMP is unreliable on mobile links, and UDP echo with sequence numbers measures loss and jitter.
@@ -33,12 +38,16 @@
 - Stage B (dashboard) is a separate repo and reads the SQLite file read-only.
 - Hotspot is metered: keep probes tiny.
 - The UDP echo server on the internet should ignore packets without a valid token (reflection abuse), to be added when it goes on AWS.
+- The Terraform instance gets the servers through `user_data` (`templatefile` + base64), no scp. The existing key pair is referenced by name, not created by Terraform.
+- The token check comes before the scheduled probe: the hotspot's public IP changes, so a /32 security group rule would make unattended probes fail. The fix is to open the echo ports and protect them with the token instead.
 
 **Known issues / open questions:**
 - TCP latency was 700-900 ms in some earlier laptop -> PC runs while ping was 6-12 ms. Not explained yet, check the individual rows in `monitor.db`.
 - Possible bug: `check_udp_echo` does not catch an `OSError` from `sendto` when the network is completely down (untested).
 - Both machines may report the same `source_host` (laptop hostname is `CicadaKatz`); check the PC's hostname and add a `--name` option if they match.
+- AWS region confirmed as eu-central-1 (Frankfurt) from the instance's public DNS name. Security group source is "My IP", and the hotspot's public IP changes, so SSH may time out later until the rule is updated.
 
 **Where I am as a learner:**
 - Understood: sockets, bind/listen/accept, why a single-threaded server blocks, threads per client, TCP vs UDP semantics, why UDP loss is only detected by timeout, how a late reply can corrupt loss counting, debugging by measuring from both ends, SQL GROUP BY summaries, exit codes.
+- Typed in but only partly understood: the new `check_udp_echo` loop with the deadline, list comprehensions, parameterized SQL, `argparse` (used before in LogAnalyzer).
 - New and untouched: Terraform, systemd timers, AWS networking (security groups, VPC), IAM details.
